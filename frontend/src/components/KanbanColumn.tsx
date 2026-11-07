@@ -11,6 +11,8 @@ type KanbanColumnProps = {
   onRename: (columnId: string, title: string) => void;
   onAddCard: (columnId: string, title: string, details: string) => void;
   onDeleteCard: (columnId: string, cardId: string) => void;
+  onRemoveColumn: (columnId: string) => void;
+  canRemove: boolean;
 };
 
 export const KanbanColumn = ({
@@ -19,6 +21,8 @@ export const KanbanColumn = ({
   onRename,
   onAddCard,
   onDeleteCard,
+  onRemoveColumn,
+  canRemove,
 }: KanbanColumnProps) => {
   const { setNodeRef, isOver } = useDroppable({ id: column.id });
 
@@ -46,6 +50,14 @@ export const KanbanColumn = ({
             aria-label="Column title"
           />
         </div>
+        <button
+          type="button"
+          onClick={() => onRemoveColumn(column.id)}
+          disabled={!canRemove}
+          className="rounded-full border border-[var(--stroke)] px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-[var(--gray-text)] disabled:opacity-40"
+        >
+          Remove
+        </button>
       </div>
       <div className="mt-4 flex flex-1 flex-col gap-3">
         <SortableContext items={column.cardIds} strategy={verticalListSortingStrategy}>

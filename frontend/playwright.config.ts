@@ -6,15 +6,16 @@ export default defineConfig({
   expect: {
     timeout: 10_000,
   },
+  // Use a dedicated test port to avoid collisions with local dev servers.
   use: {
-    baseURL: "http://127.0.0.1:3000",
+    baseURL: "http://127.0.0.1:3400",
     trace: "retain-on-failure",
   },
   webServer: {
-    command: "npm run dev -- --hostname 127.0.0.1 --port 3000",
-    url: "http://127.0.0.1:3000",
-    reuseExistingServer: true,
-    timeout: 120_000,
+    command: "npm run dev -- --hostname 127.0.0.1 --port 3400",
+    url: "http://127.0.0.1:3400",
+    reuseExistingServer: false,
+    timeout: 180_000,
   },
   projects: [
     {

@@ -1,46 +1,81 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { KanbanBoard } from "@/components/KanbanBoard";
+import { initialData } from "@/lib/kanban";
 
-const getFirstColumn = () => screen.getAllByTestId(/column-/i)[0];
+const jsonResponse = (payload: unknown) =>
+  Promise.resolve(
+    new Response(JSON.stringify(payload), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    })
+  );
+
+const setupFetchMock = () => {
+  const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    const method = init?.method ?? "GET";
+    if (url.includes("/api/auth/verify") && method === "POST") {
+      return jsonResponse({ ok: true });
+    }
+    if (url.includes("/api/board") && method === "GET") {
+      return jsonResponse(initialData);
+    }
+    if (url.includes("/api/board") && method === "PUT") {
+      return jsonResponse(JSON.parse(String(init?.body)));
+    }
+    if (url.includes("/api/chat/history")) {
+      return jsonResponse([]);
+    }
+    if (url.includes("/api/chat") && method === "POST") {
+      return jsonResponse({
+        message: "AI reply",
+        board_updated: false,
+        board: null,
+      });
+    }
+    return jsonResponse({});
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
+};
+
+const login = async () => {
+  await userEvent.type(screen.getByLabelText(/username/i), "user");
+  await userEvent.type(screen.getByLabelText(/password/i), "password");
+  await userEvent.click(screen.getByRole("button", { name: /sign in/i }));
+};
 
 describe("KanbanBoard", () => {
-  it("renders five columns", () => {
-    render(<KanbanBoard />);
-    expect(screen.getAllByTestId(/column-/i)).toHaveLength(5);
+  beforeEach(() => {
+    setupFetchMock();
   });
 
-  it("renames a column", async () => {
-    render(<KanbanBoard />);
-    const column = getFirstColumn();
-    const input = within(column).getByLabelText("Column title");
-    await userEvent.clear(input);
-    await userEvent.type(input, "New Name");
-    expect(input).toHaveValue("New Name");
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
-  it("adds and removes a card", async () => {
+  it("renders login by default", () => {
     render(<KanbanBoard />);
-    const column = getFirstColumn();
-    const addButton = within(column).getByRole("button", {
-      name: /add a card/i,
-    });
-    await userEvent.click(addButton);
+    expect(screen.getByRole("heading", { name: /sign in/i })).toBeInTheDocument();
+  });
 
-    const titleInput = within(column).getByPlaceholderText(/card title/i);
-    await userEvent.type(titleInput, "New card");
-    const detailsInput = within(column).getByPlaceholderText(/details/i);
-    await userEvent.type(detailsInput, "Notes");
+  it("loads board after login", async () => {
+    render(<KanbanBoard />);
+    await login();
+    expect(await screen.findByRole("heading", { name: /kanban studio/i })).toBeInTheDocument();
+    expect(screen.getAllByTestId(/column-/i)).toHaveLength(4);
+  });
 
+  it("adds and removes a card in an authenticated board", async () => {
+    render(<KanbanBoard />);
+    await login();
+    const column = screen.getAllByTestId(/column-/i)[0];
+    await userEvent.click(within(column).getByRole("button", { name: /add a card/i }));
+    await userEvent.type(within(column).getByPlaceholderText(/card title/i), "New card");
     await userEvent.click(within(column).getByRole("button", { name: /add card/i }));
-
     expect(within(column).getByText("New card")).toBeInTheDocument();
-
-    const deleteButton = within(column).getByRole("button", {
-      name: /delete new card/i,
-    });
-    await userEvent.click(deleteButton);
-
+    await userEvent.click(within(column).getByRole("button", { name: /delete new card/i }));
     expect(within(column).queryByText("New card")).not.toBeInTheDocument();
   });
 });

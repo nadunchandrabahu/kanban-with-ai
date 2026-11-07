@@ -18,14 +18,9 @@ export type BoardData = {
 export const initialData: BoardData = {
   columns: [
     { id: "col-backlog", title: "Backlog", cardIds: ["card-1", "card-2"] },
-    { id: "col-discovery", title: "Discovery", cardIds: ["card-3"] },
-    {
-      id: "col-progress",
-      title: "In Progress",
-      cardIds: ["card-4", "card-5"],
-    },
-    { id: "col-review", title: "Review", cardIds: ["card-6"] },
-    { id: "col-done", title: "Done", cardIds: ["card-7", "card-8"] },
+    { id: "col-progress", title: "In Progress", cardIds: ["card-3"] },
+    { id: "col-review", title: "Review", cardIds: ["card-4"] },
+    { id: "col-done", title: "Done", cardIds: ["card-5"] },
   ],
   cards: {
     "card-1": {
@@ -45,26 +40,11 @@ export const initialData: BoardData = {
     },
     "card-4": {
       id: "card-4",
-      title: "Refine status language",
-      details: "Standardize column labels and tone across the board.",
-    },
-    "card-5": {
-      id: "card-5",
-      title: "Design card layout",
-      details: "Add hierarchy and spacing for scanning dense lists.",
-    },
-    "card-6": {
-      id: "card-6",
       title: "QA micro-interactions",
       details: "Verify hover, focus, and loading states.",
     },
-    "card-7": {
-      id: "card-7",
-      title: "Ship marketing page",
-      details: "Final copy approved and asset pack delivered.",
-    },
-    "card-8": {
-      id: "card-8",
+    "card-5": {
+      id: "card-5",
       title: "Close onboarding sprint",
       details: "Document release notes and share internally.",
     },
