@@ -35,9 +35,9 @@ class FakeClient:
 
 
 def test_headers_requires_key(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     with pytest.raises(HTTPException):
-        openrouter._headers()
+        openrouter._api_key()
 
 
 def test_parse_response_content():
@@ -48,15 +48,19 @@ def test_parse_response_content():
 
 
 def test_ask_ai(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
     fake_client = FakeClient(
         {
-            "choices": [
+            "candidates": [
                 {
-                    "message": {
-                        "content": json.dumps(
+                    "content": {
+                        "parts": [
+                            {
+                                "text": json.dumps(
                             {"assistant_reply": "done", "updated_board": None}
                         )
+                            }
+                        ]
                     }
                 }
             ]
@@ -66,11 +70,13 @@ def test_ask_ai(monkeypatch: pytest.MonkeyPatch):
     board = BoardData(columns=[], cards={})
     result = openrouter.ask_ai(board, [ChatMessage(role="user", content="hello")], "help")
     assert result.assistant_reply == "done"
-    assert fake_client.calls[0][2]["model"] == openrouter.MODEL_NAME
+    assert "generationConfig" in fake_client.calls[0][2]
 
 
 def test_ping_ai(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
-    fake_client = FakeClient({"choices": [{"message": {"content": "4"}}]})
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    fake_client = FakeClient(
+        {"candidates": [{"content": {"parts": [{"text": "4"}]}}]}
+    )
     monkeypatch.setattr(openrouter.httpx, "Client", lambda timeout: fake_client)
     assert openrouter.ping_ai() == "4"

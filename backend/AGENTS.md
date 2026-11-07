@@ -5,7 +5,7 @@ The backend is a FastAPI service that:
 - Verifies dummy credentials (`user` / `password`)
 - Persists Kanban board state per user in SQLite
 - Persists chat history per user in SQLite
-- Serves OpenRouter-backed AI chat with structured board update payloads
+- Serves Gemini-backed AI chat with structured board update payloads
 - Serves exported frontend static assets from `/`
 
 ## Main modules
@@ -13,7 +13,7 @@ The backend is a FastAPI service that:
 - `app/main.py`: API routes, startup, and static serving
 - `app/db.py`: schema setup and persistence helpers
 - `app/auth.py`: request-level credential verification
-- `app/openrouter.py`: OpenRouter integration and structured response parsing
+- `app/openrouter.py`: Gemini integration and structured response parsing
 - `app/models.py`: pydantic request/response models
 
 ## Tests
