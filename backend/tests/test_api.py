@@ -57,3 +57,12 @@ def test_ai_ping(mocked_client_with_ping):
     response = client.get("/api/ai/ping", headers=auth_headers())
     assert response.status_code == 200
     assert "4" in response.json()["answer"]
+
+
+def test_chat_returns_sanitized_provider_error(mocked_client_with_ai_provider_error):
+    client = mocked_client_with_ai_provider_error
+    response = client.post("/api/chat", headers=auth_headers(), json={"message": "hello"})
+    assert response.status_code == 502
+    assert "temporarily unavailable" in response.json()["detail"].lower()
+    assert "apikey" not in response.json()["detail"].lower()
+    assert "key=" not in response.json()["detail"].lower()

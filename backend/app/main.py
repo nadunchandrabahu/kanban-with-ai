@@ -57,6 +57,11 @@ def chat(payload: ChatRequest, username: str = Depends(require_username)) -> Cha
     history = db.get_chat_history(username)
     try:
         result = openrouter.ask_ai(board=board, history=history, user_message=payload.message)
+    except openrouter.AIProviderError as error:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(error),
+        ) from error
     except (httpx.HTTPError, ValueError) as error:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -80,6 +85,11 @@ def ai_ping(username: str = Depends(require_username)) -> dict[str, str]:
     _ = username
     try:
         answer = openrouter.ping_ai()
+    except openrouter.AIProviderError as error:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(error),
+        ) from error
     except httpx.HTTPError as error:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,

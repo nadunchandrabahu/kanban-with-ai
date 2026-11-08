@@ -57,3 +57,21 @@ def mocked_client_with_ping(client: TestClient, monkeypatch: pytest.MonkeyPatch)
     _ = client
     monkeypatch.setattr(openrouter, "ping_ai", lambda: "4")
     return client
+
+
+@pytest.fixture()
+def mocked_client_with_ai_provider_error(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> TestClient:
+    _ = client
+
+    def fail_ai(board: BoardData, history, user_message: str):
+        _ = board, history, user_message
+        raise openrouter.AIProviderError(
+            "Gemini service is temporarily unavailable. Please try again.",
+            provider_status_code=503,
+        )
+
+    monkeypatch.setattr(openrouter, "ask_ai", fail_ai)
+    return client
