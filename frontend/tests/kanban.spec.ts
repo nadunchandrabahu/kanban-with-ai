@@ -91,3 +91,26 @@ test("moves a card between columns", async ({ page }) => {
   await page.mouse.up();
   await expect(targetColumn.getByTestId("card-card-1")).toBeVisible();
 });
+
+test("edits a card and renames a column", async ({ page }) => {
+  const puts: string[] = [];
+  page.on("request", (request) => {
+    if (request.method() === "PUT") {
+      puts.push(request.postData() ?? "");
+    }
+  });
+  await page.goto("/");
+  await login(page);
+  const card = page.getByTestId("card-card-1");
+  await card.getByRole("button", { name: "Edit A" }).click();
+  await card.getByLabel("Edit card title").fill("Edited in e2e");
+  await card.getByRole("button", { name: "Save" }).click();
+  await expect(card.getByText("Edited in e2e")).toBeVisible();
+
+  const title = page.getByTestId("column-col-backlog").getByLabel("Column title");
+  await title.fill("Renamed");
+  await title.press("Enter");
+  await expect(title).toHaveValue("Renamed");
+  await expect.poll(() => puts.length).toBe(2);
+  expect(JSON.parse(puts[1]).columns[0].title).toBe("Renamed");
+});

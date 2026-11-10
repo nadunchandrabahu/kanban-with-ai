@@ -1,5 +1,6 @@
-from typing import Literal
-from pydantic import BaseModel, Field
+from typing import Literal, Self
+
+from pydantic import BaseModel, Field, model_validator
 
 
 class Card(BaseModel):
@@ -17,6 +18,21 @@ class Column(BaseModel):
 class BoardData(BaseModel):
     columns: list[Column] = Field(default_factory=list)
     cards: dict[str, Card] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def check_consistency(self) -> Self:
+        column_ids = [column.id for column in self.columns]
+        if len(column_ids) != len(set(column_ids)):
+            raise ValueError("Column ids must be unique.")
+        placed = [card_id for column in self.columns for card_id in column.cardIds]
+        if len(placed) != len(set(placed)):
+            raise ValueError("Each card must appear in only one column, once.")
+        if set(placed) != set(self.cards):
+            raise ValueError("Every card must be in exactly one column, and every cardId must exist in cards.")
+        for key, card in self.cards.items():
+            if card.id != key:
+                raise ValueError(f"Card key {key!r} does not match card id {card.id!r}.")
+        return self
 
 
 class Credentials(BaseModel):

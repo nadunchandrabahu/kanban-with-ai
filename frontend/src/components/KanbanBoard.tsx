@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
+import clsx from "clsx";
 import {
   DndContext,
   DragOverlay,
@@ -13,14 +14,7 @@ import {
 } from "@dnd-kit/core";
 import { KanbanColumn } from "@/components/KanbanColumn";
 import { KanbanCardPreview } from "@/components/KanbanCardPreview";
-import {
-  createId,
-  initialData,
-  moveCard,
-  type BoardData,
-  type Card,
-  type Column,
-} from "@/lib/kanban";
+import { createId, moveCard, type BoardData, type Card, type Column } from "@/lib/kanban";
 import {
   fetchBoard,
   fetchChatHistory,
@@ -33,18 +27,15 @@ import {
 
 const defaultCredentials: Credentials = { username: "", password: "" };
 
-const safeColumnTitle = (title: string) => title.trim() || "Untitled";
-
 export const KanbanBoard = () => {
   const [credentials, setCredentials] = useState<Credentials>(defaultCredentials);
   const [auth, setAuth] = useState<Credentials | null>(null);
-  const [board, setBoard] = useState<BoardData>(() => initialData);
+  const [board, setBoard] = useState<BoardData | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [authError, setAuthError] = useState<string | null>(null);
   const [boardError, setBoardError] = useState<string | null>(null);
   const [chatError, setChatError] = useState<string | null>(null);
-  const [loadingBoard, setLoadingBoard] = useState(false);
   const [loggingIn, setLoggingIn] = useState(false);
   const [sendingChat, setSendingChat] = useState(false);
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
@@ -55,19 +46,19 @@ export const KanbanBoard = () => {
     })
   );
 
-  const cardsById = useMemo(() => board.cards, [board.cards]);
-
+  // The board is locked while the AI is responding, because the AI reply replaces the whole board.
   const applyBoardUpdate = (updater: (prev: BoardData) => BoardData) => {
-    if (!auth) {
+    if (!auth || !board || sendingChat) {
       return;
     }
-    setBoard((prev) => {
-      const next = updater(prev);
-      void saveBoard(auth, next).catch((error: Error) => {
-        setBoardError(error.message);
+    const next = updater(board);
+    setBoard(next);
+    saveBoard(auth, next)
+      .then(() => setBoardError(null))
+      .catch(async (error: Error) => {
+        setBoardError(`${error.message} Reloaded the last saved board.`);
+        setBoard(await fetchBoard(auth));
       });
-      return next;
-    });
   };
 
   const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
@@ -80,8 +71,6 @@ export const KanbanBoard = () => {
         setAuthError("Invalid credentials.");
         return;
       }
-      setAuth(credentials);
-      setLoadingBoard(true);
       const [remoteBoard, history] = await Promise.all([
         fetchBoard(credentials),
         fetchChatHistory(credentials),
@@ -90,11 +79,11 @@ export const KanbanBoard = () => {
       setMessages(history);
       setBoardError(null);
       setChatError(null);
+      setAuth(credentials);
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : "Login failed.");
     } finally {
       setLoggingIn(false);
-      setLoadingBoard(false);
     }
   };
 
@@ -102,7 +91,7 @@ export const KanbanBoard = () => {
     setAuth(null);
     setCredentials(defaultCredentials);
     setMessages([]);
-    setBoard(initialData);
+    setBoard(null);
   };
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -125,7 +114,7 @@ export const KanbanBoard = () => {
     applyBoardUpdate((prev) => ({
       ...prev,
       columns: prev.columns.map((column) =>
-        column.id === columnId ? { ...column, title: safeColumnTitle(title) } : column
+        column.id === columnId ? { ...column, title } : column
       ),
     }));
   };
@@ -175,6 +164,13 @@ export const KanbanBoard = () => {
     }));
   };
 
+  const handleEditCard = (cardId: string, title: string, details: string) => {
+    applyBoardUpdate((prev) => ({
+      ...prev,
+      cards: { ...prev.cards, [cardId]: { id: cardId, title, details } },
+    }));
+  };
+
   const handleDeleteCard = (columnId: string, cardId: string) => {
     applyBoardUpdate((prev) => ({
       ...prev,
@@ -215,9 +211,7 @@ export const KanbanBoard = () => {
     }
   };
 
-  const activeCard = activeCardId ? cardsById[activeCardId] : null;
-
-  if (!auth) {
+  if (!auth || !board) {
     return (
       <main className="mx-auto flex min-h-screen max-w-md items-center px-6">
         <form
@@ -268,6 +262,8 @@ export const KanbanBoard = () => {
     );
   }
 
+  const activeCard = activeCardId ? board.cards[activeCardId] : null;
+
   return (
     <div className="relative overflow-hidden">
       <div className="pointer-events-none absolute left-0 top-0 h-[420px] w-[420px] -translate-x-1/3 -translate-y-1/3 rounded-full bg-[radial-gradient(circle,_rgba(32,157,215,0.25)_0%,_rgba(32,157,215,0.05)_55%,_transparent_70%)]" />
@@ -293,7 +289,8 @@ export const KanbanBoard = () => {
                 <button
                   onClick={handleAddColumn}
                   type="button"
-                  className="rounded-full border border-[var(--stroke)] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--primary-blue)]"
+                  disabled={sendingChat}
+                  className="rounded-full border border-[var(--stroke)] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--primary-blue)] disabled:opacity-40"
                 >
                   Add column
                 </button>
@@ -306,7 +303,11 @@ export const KanbanBoard = () => {
                 </button>
               </div>
             </div>
-            {loadingBoard ? <p>Loading board...</p> : null}
+            {sendingChat ? (
+              <p className="text-sm text-[var(--gray-text)]">
+                The board is locked while the AI assistant is responding.
+              </p>
+            ) : null}
             {boardError ? <p className="text-sm text-red-600">{boardError}</p> : null}
           </header>
 
@@ -316,7 +317,14 @@ export const KanbanBoard = () => {
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
           >
-            <section className="mt-6 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+            <section
+              aria-busy={sendingChat}
+              data-testid="board"
+              className={clsx(
+                "mt-6 grid gap-6 md:grid-cols-2 xl:grid-cols-4",
+                sendingChat && "pointer-events-none opacity-60"
+              )}
+            >
               {board.columns.map((column: Column) => (
                 <KanbanColumn
                   key={column.id}
@@ -330,6 +338,7 @@ export const KanbanBoard = () => {
                   }, [])}
                   onRename={handleRenameColumn}
                   onAddCard={handleAddCard}
+                  onEditCard={handleEditCard}
                   onDeleteCard={handleDeleteCard}
                   onRemoveColumn={handleRemoveColumn}
                   canRemove={board.columns.length > 1}

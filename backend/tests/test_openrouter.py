@@ -147,3 +147,39 @@ def test_ask_ai_raises_sanitized_error_after_retries(monkeypatch: pytest.MonkeyP
     with pytest.raises(openrouter.AIProviderError) as error:
         openrouter.ask_ai(board, [], "hello")
     assert "temporarily unavailable" in str(error.value).lower()
+
+
+def test_ask_ai_request_shape(monkeypatch: pytest.MonkeyPatch):
+    captured = {}
+
+    def fake_post(body, timeout_seconds):
+        captured["body"] = body
+        return {"candidates": [{"content": {"parts": [{"text": '{"assistant_reply": "ok", "updated_board": null}'}]}}]}
+
+    monkeypatch.setattr(openrouter, "_post_with_retry", fake_post)
+    board = BoardData(columns=[], cards={})
+    history = [
+        ChatMessage(role="user", content="earlier question"),
+        ChatMessage(role="assistant", content="earlier answer"),
+    ]
+    openrouter.ask_ai(board, history, "add a card")
+    body = captured["body"]
+    contents = body["contents"]
+    assert [item["role"] for item in contents] == ["user", "model", "user"]
+    last = contents[-1]["parts"][0]["text"]
+    assert board.model_dump_json() in last
+    assert last.endswith("add a card")
+    assert "cardIds" in body["systemInstruction"]["parts"][0]["text"]
+    schema = body["generationConfig"]["responseJsonSchema"]
+    assert set(schema["properties"]) == {"assistant_reply", "updated_board"}
+
+
+def test_parse_response_content_validates_board():
+    content = json.dumps(
+        {
+            "assistant_reply": "ok",
+            "updated_board": {"columns": [{"id": "c", "title": "A", "cardIds": ["x"]}], "cards": {}},
+        }
+    )
+    with pytest.raises(ValueError):
+        openrouter._parse_response_content(content)

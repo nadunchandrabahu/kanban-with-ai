@@ -6,7 +6,7 @@ import {
   verifyCredentials,
   type Credentials,
 } from "@/lib/api";
-import { initialData } from "@/lib/kanban";
+import { sampleBoard } from "@/test/fixtures";
 
 const credentials: Credentials = { username: "user", password: "password" };
 
@@ -31,22 +31,22 @@ describe("api helpers", () => {
   it("loads board and chat history", async () => {
     const fetchMock = vi
       .fn()
-      .mockImplementationOnce(() => jsonResponse(initialData))
+      .mockImplementationOnce(() => jsonResponse(sampleBoard))
       .mockImplementationOnce(() => jsonResponse([]));
     vi.stubGlobal("fetch", fetchMock);
-    await expect(fetchBoard(credentials)).resolves.toMatchObject(initialData);
+    await expect(fetchBoard(credentials)).resolves.toMatchObject(sampleBoard);
     await expect(fetchChatHistory(credentials)).resolves.toEqual([]);
   });
 
   it("saves board and sends chat", async () => {
     const fetchMock = vi
       .fn()
-      .mockImplementationOnce(() => jsonResponse(initialData))
+      .mockImplementationOnce(() => jsonResponse(sampleBoard))
       .mockImplementationOnce(() =>
         jsonResponse({ message: "Hi", board_updated: false, board: null })
       );
     vi.stubGlobal("fetch", fetchMock);
-    await expect(saveBoard(credentials, initialData)).resolves.toMatchObject(initialData);
+    await expect(saveBoard(credentials, sampleBoard)).resolves.toMatchObject(sampleBoard);
     await expect(sendChat(credentials, "hello")).resolves.toMatchObject({
       message: "Hi",
     });

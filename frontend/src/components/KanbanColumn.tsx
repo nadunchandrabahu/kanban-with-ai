@@ -10,6 +10,7 @@ type KanbanColumnProps = {
   cards: Card[];
   onRename: (columnId: string, title: string) => void;
   onAddCard: (columnId: string, title: string, details: string) => void;
+  onEditCard: (cardId: string, title: string, details: string) => void;
   onDeleteCard: (columnId: string, cardId: string) => void;
   onRemoveColumn: (columnId: string) => void;
   canRemove: boolean;
@@ -20,6 +21,7 @@ export const KanbanColumn = ({
   cards,
   onRename,
   onAddCard,
+  onEditCard,
   onDeleteCard,
   onRemoveColumn,
   canRemove,
@@ -43,9 +45,25 @@ export const KanbanColumn = ({
               {cards.length} cards
             </span>
           </div>
+          {/* Uncontrolled: saves once on blur or Enter. The key resets it when the title changes elsewhere. */}
           <input
-            value={column.title}
-            onChange={(event) => onRename(column.id, event.target.value)}
+            key={column.title}
+            defaultValue={column.title}
+            onBlur={(event) => {
+              const title = event.currentTarget.value.trim();
+              if (!title) {
+                event.currentTarget.value = column.title;
+                return;
+              }
+              if (title !== column.title) {
+                onRename(column.id, title);
+              }
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.currentTarget.blur();
+              }
+            }}
             className="mt-3 w-full bg-transparent font-display text-lg font-semibold text-[var(--navy-dark)] outline-none"
             aria-label="Column title"
           />
@@ -65,6 +83,7 @@ export const KanbanColumn = ({
             <KanbanCard
               key={card.id}
               card={card}
+              onEdit={onEditCard}
               onDelete={(cardId) => onDeleteCard(column.id, cardId)}
             />
           ))}

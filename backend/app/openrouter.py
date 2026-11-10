@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import os
 import time
 
@@ -56,20 +55,30 @@ def _safe_provider_error(error: httpx.HTTPStatusError) -> AIProviderError:
     )
 
 
-def _extract_json_payload(text: str) -> str:
-    cleaned = text.strip()
-    if cleaned.startswith("```"):
-        lines = cleaned.splitlines()
-        if len(lines) >= 3:
-            cleaned = "\n".join(lines[1:-1]).strip()
-    return cleaned
+SYSTEM_INSTRUCTION = """You are a project management assistant for a Kanban board.
+Respond with JSON matching the response schema: assistant_reply (short plain text) and updated_board.
+
+Board format:
+- columns: ordered list of {id, title, cardIds}. cardIds lists that column's card ids, top to bottom.
+- cards: object mapping each card id to {id, title, details}. The key must equal the card's id.
+
+Rules for updated_board:
+- Set it to null unless the user asked you to change the board.
+- When changing the board, return the complete board, not only the changes.
+- Keep every existing column and card exactly as it is unless the user asked to change or delete it.
+- Every card must appear in exactly one column's cardIds, and every id in cardIds must exist in cards.
+- Give new cards and columns new unique ids, such as card-<short random suffix>."""
+
+
+def _response_text(data: dict) -> str:
+    try:
+        return data["candidates"][0]["content"]["parts"][0]["text"]
+    except (KeyError, IndexError, TypeError) as error:
+        raise AIProviderError("Gemini returned no content.") from error
 
 
 def _parse_response_content(content: str) -> AIResult:
-    payload = json.loads(_extract_json_payload(content))
-    if payload.get("updated_board") is not None:
-        payload["updated_board"] = BoardData.model_validate(payload["updated_board"])
-    return AIResult.model_validate(payload)
+    return AIResult.model_validate_json(content)
 
 
 def _history_to_gemini_contents(history: list[ChatMessage]) -> list[dict]:
@@ -109,34 +118,20 @@ def ask_ai(
     history: list[ChatMessage],
     user_message: str,
 ) -> AIResult:
+    prompt = f"Current board JSON:\n{board.model_dump_json()}\n\nUser request:\n{user_message}"
     body = {
-        "systemInstruction": {
-            "parts": [
-                {
-                    "text": (
-                        "You are a project management assistant. Reply with practical advice. "
-                        "Return strict JSON with keys assistant_reply and updated_board. "
-                        "Only provide updated_board when the user requested concrete board changes. "
-                        "When providing updated_board, return the full board object."
-                    )
-                }
-            ]
-        },
+        "systemInstruction": {"parts": [{"text": SYSTEM_INSTRUCTION}]},
         "contents": [
-            {
-                "role": "user",
-                "parts": [{"text": f"Current board JSON: {board.model_dump_json()}"}],
-            },
             *_history_to_gemini_contents(history),
-            {"role": "user", "parts": [{"text": user_message}]},
+            {"role": "user", "parts": [{"text": prompt}]},
         ],
         "generationConfig": {
             "responseMimeType": "application/json",
+            "responseJsonSchema": AIResult.model_json_schema(),
         },
     }
     data = _post_with_retry(body=body, timeout_seconds=45.0)
-    content = data["candidates"][0]["content"]["parts"][0]["text"]
-    return _parse_response_content(content)
+    return _parse_response_content(_response_text(data))
 
 
 def ping_ai() -> str:
@@ -146,4 +141,4 @@ def ping_ai() -> str:
         ],
     }
     data = _post_with_retry(body=body, timeout_seconds=30.0)
-    return data["candidates"][0]["content"]["parts"][0]["text"]
+    return _response_text(data)

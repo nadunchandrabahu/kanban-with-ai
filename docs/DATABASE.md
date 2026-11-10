@@ -35,4 +35,13 @@ The board JSON shape:
 
 ## Why JSON for board data
 
-For this MVP, board-as-JSON keeps writes simple and makes AI context transfer direct. The backend validates structure with pydantic on read/write to avoid malformed data drift.
+For this MVP, board-as-JSON keeps writes simple and makes AI context transfer direct. The backend validates the board with pydantic (`BoardData` in `backend/app/models.py`) on every read and write, including AI output. Besides shape, it enforces:
+
+- column ids are unique
+- every card id appears in exactly one column's `cardIds`, once
+- every `cardIds` entry exists in `cards`
+- each `cards` key equals that card's `id`
+
+## Location
+
+`DATABASE_PATH` (default `data/pm.db` locally, `/app/data/pm.db` in Docker). The start scripts mount the `pm-data` Docker volume at `/app/data`, so data survives container restarts. Remove the volume (`docker volume rm pm-data`) to reset to the seeded state.

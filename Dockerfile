@@ -8,13 +8,16 @@ RUN npm run build
 FROM python:3.12-slim AS runtime
 WORKDIR /app
 
-RUN pip install --no-cache-dir uv
+RUN pip install --no-cache-dir uv==0.13.7
 
-COPY backend/ /app/backend/
-RUN cd /app/backend && uv pip install --system .
+WORKDIR /app/backend
+COPY backend/pyproject.toml backend/uv.lock ./
+RUN uv sync --frozen --no-dev
+COPY backend/ ./
 
 COPY --from=frontend-build /frontend/out /app/frontend-dist
 
+ENV PATH="/app/backend/.venv/bin:$PATH"
 ENV FRONTEND_DIST=/app/frontend-dist
 ENV DATABASE_PATH=/app/data/pm.db
 EXPOSE 8000
